@@ -37,6 +37,20 @@ export default function Dashboard() {
   const [stations, setStations] = useState(STATIONS);
   const toastIdRef = useRef(0);
 
+  // Refs for each highlightable section
+  const overviewRef = useRef(null);
+  const monitoringRef = useRef(null);
+  const anomaliesRef = useRef(null);
+  const analyticsRef = useRef(null);
+
+  const sectionRefs = {
+    overview: overviewRef,
+    monitoring: monitoringRef,
+    stations: monitoringRef, // Stations points at the map section
+    anomalies: anomaliesRef,
+    analytics: analyticsRef,
+  };
+
   const selectedStation = stations.find((s) => s.id === selectedStationId) || null;
 
   useEffect(() => {
@@ -102,6 +116,14 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
+  // Scroll to + highlight section when nav changes
+  useEffect(() => {
+    const el = sectionRefs[navActive]?.current;
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [navActive]);
+
   const dismissToast = (id) => setToasts((prev) => prev.filter((t) => t.id !== id));
 
   const openAnomalyDetail = (anomaly) => {
@@ -158,6 +180,13 @@ export default function Dashboard() {
   const humidityMin = Math.min(...SENSOR_SERIES.map((d) => d.humidity));
   const humidityMax = Math.max(...SENSOR_SERIES.map((d) => d.humidity));
 
+  const sectionClass = (id) =>
+    `rounded-lg transition-all duration-300 ${
+      navActive === id || (id === "monitoring" && navActive === "stations")
+        ? "ring-2 ring-atmos-400/60 ring-offset-2 ring-offset-base-950"
+        : "opacity-50 blur-[1px]"
+    }`;
+
   return (
     <div className="flex min-h-screen bg-base-950">
       <Sidebar
@@ -198,36 +227,40 @@ export default function Dashboard() {
 
         <main className="flex-1 space-y-6 px-6 py-6">
           {/* KPI cards */}
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {loading
-              ? Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="h-[104px] rounded-lg border border-line bg-base-900/60 p-5">
-                    <div className="skeleton h-3 w-24 rounded" />
-                    <div className="skeleton mt-4 h-6 w-16 rounded" />
-                  </div>
-                ))
-              : kpis.map((k) => <KPICard key={k.label} {...k} />)}
+          <div ref={overviewRef} className={sectionClass("overview")}>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {loading
+                ? Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="h-[104px] rounded-lg border border-line bg-base-900/60 p-5">
+                      <div className="skeleton h-3 w-24 rounded" />
+                      <div className="skeleton mt-4 h-6 w-16 rounded" />
+                    </div>
+                  ))
+                : kpis.map((k) => <KPICard key={k.label} {...k} />)}
+            </div>
           </div>
 
           {/* Map + Inspector */}
-          <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
-            <div>
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-[14px] font-semibold text-white">AWS Network</h2>
-                <span className="text-[12px] text-ink-faint">{stations.length} stations shown</span>
+          <div ref={monitoringRef} className={sectionClass("monitoring")}>
+            <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+              <div>
+                <div className="mb-3 flex items-center justify-between">
+                  <h2 className="text-[14px] font-semibold text-white">AWS Network</h2>
+                  <span className="text-[12px] text-ink-faint">{stations.length} stations shown</span>
+                </div>
+                <NetworkMap stations={stations} selectedId={selectedStationId} onSelect={setSelectedStationId} />
               </div>
-              <NetworkMap stations={stations} selectedId={selectedStationId} onSelect={setSelectedStationId} />
-            </div>
-            <div>
-              <h2 className="mb-3 text-[14px] font-semibold text-white">Station Inspector</h2>
-              <div className="h-[460px] lg:h-[520px]">
-                <StationInspector station={selectedStation} onViewDetails={() => openAnomalyDetail(anomalyList[0])} />
+              <div>
+                <h2 className="mb-3 text-[14px] font-semibold text-white">Station Inspector</h2>
+                <div className="h-[460px] lg:h-[520px]">
+                  <StationInspector station={selectedStation} onViewDetails={() => openAnomalyDetail(anomalyList[0])} />
+                </div>
               </div>
             </div>
           </div>
 
           {/* Sensor charts */}
-          <div>
+          <div ref={analyticsRef} className={sectionClass("analytics")}>
             <h2 className="mb-3 text-[14px] font-semibold text-white">Live Sensor Charts — {selectedStation?.id ?? "AWS-DEL-01"}</h2>
             <div className="grid gap-4 lg:grid-cols-3">
               <SensorChart
@@ -264,7 +297,7 @@ export default function Dashboard() {
           </div>
 
           {/* Anomaly table */}
-          <div>
+          <div ref={anomaliesRef} className={sectionClass("anomalies")}>
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-[14px] font-semibold text-white">Recent Anomalies</h2>
               <span className="text-[12px] text-ink-faint">Click a row for full explainability</span>
